@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+documento.jpg
+global_T*.png
+otsu.png
+adapt_media.png
+adapt_ponderada.png

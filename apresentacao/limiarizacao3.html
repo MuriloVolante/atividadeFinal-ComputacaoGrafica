@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Limiarização e Segmentação</title>
+<style>
+:root{
+  --ink:#0B0F15; --paper:#ffffff; --surf:#EEF1F5; --line:#C9D0DA; --line2:#9BA5B4;
+  --txt:#2E3744; --mut:#6B7684;
+  --acc:#1552E0; --acc2:#0E7A45;
+  --mono:"Cascadia Code","Consolas","JetBrains Mono","DejaVu Sans Mono",Menlo,monospace;
+  --sans:"Segoe UI",-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --sh:0 2px 10px rgba(11,15,21,.12);
+  --sh2:0 6px 22px rgba(11,15,21,.16);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--paper);font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased}
+body.escuro{background:var(--ink)}
+
+#palco{position:fixed;left:0;top:50%;width:1600px;height:900px;transform-origin:left center;
+  background:var(--paper);overflow:hidden;transition:transform .42s cubic-bezier(.22,.8,.26,1)}
+body.escuro #palco{background:var(--ink)}
+
+.slide{position:absolute;inset:0;padding:72px 92px 60px 136px;display:flex;flex-direction:column}
+.slide.escuro{background:var(--ink);color:#EDF0F4}
+.entra{animation:sobe .3s cubic-bezier(.2,.7,.3,1) both}
+@keyframes sobe{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+h1{font-size:94px;font-weight:700;letter-spacing:-3px;line-height:.98}
+h2{font-size:50px;font-weight:700;letter-spacing:-1.1px;line-height:1.05}
+h3{font-size:26px;font-weight:700}
+p{font-size:22px;line-height:1.5;color:var(--txt)}
+.escuro p{color:#B9C2CE}
+.lead{font-size:27px;line-height:1.4;color:var(--txt)}
+.escuro .lead{color:#CDD5DF}
+.sm{font-size:18px;line-height:1.5;color:var(--mut)}
+.kicker{font-size:14px;font-weight:700;letter-spacing:2.4px;text-transform:uppercase;color:var(--acc)}
+b,strong{font-weight:700;color:var(--ink)} .escuro b{color:#fff}
+.acc{color:var(--acc)} .acc2{color:var(--acc2)}
+.tt{font-family:var(--mono)}
+
+.row{display:flex} .col{display:flex;flex-direction:column} .grow{flex:1}
+.ac{align-items:center} .ae{align-items:flex-end} .jb{justify-content:space-between} .jc{justify-content:center}
+.g8{gap:8px}.g12{gap:12px}.g16{gap:16px}.g20{gap:20px}.g24{gap:24px}.g32{gap:32px}.g40{gap:40px}.g56{gap:56px}
+.mt8{margin-top:8px}.mt16{margin-top:16px}.mt24{margin-top:24px}.mt32{margin-top:32px}.mt40{margin-top:40px}
+
+.card{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:26px 30px;box-shadow:var(--sh)}
+.card.plain{background:#fff;border:2px solid var(--line)}
+.escuro .card{background:#151B24;border-color:#2A3340;box-shadow:none}
+
+.quadro{border:2px solid var(--line2);border-radius:10px;overflow:hidden;background:#fff;display:block;box-shadow:var(--sh)}
+.escuro .quadro{border-color:#39434F}
+canvas{display:block}
+
+.rotulo{font-size:14px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--txt)}
+.rotulo.on{color:var(--acc)}
+
+table{border-collapse:collapse;width:100%;font-size:19px}
+th{text-align:left;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--txt);
+  padding:0 12px 12px;border-bottom:2px solid var(--ink)}
+td{padding:13px 12px;border-bottom:1px solid var(--line);color:var(--txt)}
+tr.on td{background:#E9F0FE;color:var(--ink);font-weight:700}
+tr.on td:first-child{box-shadow:inset 4px 0 0 var(--acc)}
+.clicavel tr{cursor:pointer}
+.clicavel tbody tr:hover td{background:#F2F4F7}
+.clicavel tr.on:hover td{background:#E9F0FE}
+
+/* celulas de conta */
+.contas{display:flex;gap:14px;flex-wrap:wrap}
+.conta{background:#fff;border:2px solid var(--line);border-radius:12px;padding:14px 18px;display:flex;
+  flex-direction:column;gap:7px;box-shadow:var(--sh);min-width:120px}
+.conta .cab{font-size:12px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--mut);white-space:nowrap}
+.conta .vlr{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--ink);white-space:nowrap}
+.conta.on{border-color:var(--acc);background:#EFF4FE}
+.conta.on .cab{color:var(--acc)}
+.conta.fim .vlr{color:var(--acc)}
+
+/* barra de controles */
+.barra{display:inline-flex;align-items:center;gap:26px;background:var(--surf);border:2px solid var(--line);
+  border-radius:999px;padding:12px 26px;box-shadow:var(--sh)}
+.barraTopo{display:flex;align-items:center;gap:30px;background:var(--surf);border:2px solid var(--line);
+  border-radius:16px;padding:14px 24px;box-shadow:var(--sh);width:100%}
+.ctrl{display:flex;align-items:center;gap:14px;font-size:17px;color:var(--txt)}
+.ctrl .nome{font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt)}
+.ctrl .val{font-family:var(--mono);font-size:21px;font-weight:700;color:var(--ink);min-width:50px}
+input[type=range]{-webkit-appearance:none;appearance:none;height:6px;background:#B6BEC9;border-radius:4px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+  background:var(--acc);cursor:pointer;box-shadow:0 2px 7px rgba(21,82,224,.5);border:2px solid #fff}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border:2px solid #fff;border-radius:50%;
+  background:var(--acc);cursor:pointer}
+
+.pill{position:relative;display:inline-flex;background:#DDE2E9;border:1px solid var(--line);border-radius:999px;padding:4px}
+.pill .deslizante{position:absolute;top:4px;bottom:4px;border-radius:999px;background:var(--ink);
+  box-shadow:0 2px 8px rgba(11,15,21,.3);transition:transform .26s cubic-bezier(.3,.8,.3,1),width .26s cubic-bezier(.3,.8,.3,1)}
+.pill button{position:relative;z-index:1;font:inherit;font-size:16px;font-weight:600;border:0;background:none;
+  padding:9px 22px;border-radius:999px;cursor:pointer;color:var(--txt);transition:color .2s}
+.pill button.on{color:#fff}
+
+.botao{font:inherit;font-size:17px;font-weight:600;border:2px solid var(--line);background:#fff;color:var(--txt);
+  padding:12px 22px;border-radius:10px;cursor:pointer;transition:.18s;box-shadow:var(--sh)}
+.botao:hover{border-color:var(--ink);color:var(--ink)}
+.botao.forte{background:var(--ink);color:#fff;border-color:var(--ink)}
+.escuro .botao{background:#151B24;border-color:#39434F;color:#B9C2CE}
+.escuro .botao:hover{border-color:var(--acc);color:#fff}
+.escuro .botao.forte{background:var(--acc);border-color:var(--acc);color:#fff}
+.escuro .botao.forte:hover{background:#0F3FB5;border-color:#0F3FB5}
+
+.grade{display:grid;gap:3px}
+.cel{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;border-radius:3px}
+
+/* rail e contador */
+#rail{position:fixed;left:0;top:0;bottom:0;width:66px;z-index:30;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;border-right:2px solid var(--line);background:rgba(255,255,255,.9)}
+body.escuro #rail{border-right-color:#2A3340;background:rgba(11,15,21,.9)}
+#btcode{width:48px;height:48px;border-radius:12px;border:2px solid var(--line);background:#fff;cursor:pointer;
+  display:none;align-items:center;justify-content:center;font-family:var(--mono);font-size:15px;font-weight:700;
+  color:var(--txt);transition:.2s;letter-spacing:-1px;box-shadow:var(--sh)}
+#btcode:hover{border-color:var(--acc);color:var(--acc);transform:translateY(-2px)}
+#btcode.on{background:var(--acc);border-color:var(--acc);color:#fff}
+body.escuro #btcode{background:#151B24;border-color:#39434F;color:#B9C2CE}
+#cont{position:fixed;right:14px;bottom:10px;z-index:31;font-family:var(--mono);font-size:14px;font-weight:700;
+  color:var(--mut);letter-spacing:.5px}
+body.escuro #cont{color:#6B7684}
+
+/* editor */
+#ed{position:fixed;top:0;right:0;bottom:0;width:46vw;min-width:620px;background:#1E1E1E;z-index:40;
+  display:flex;flex-direction:column;transform:translateX(101%);
+  transition:transform .42s cubic-bezier(.22,.8,.26,1);box-shadow:-24px 0 60px rgba(0,0,0,.4)}
+#ed.on{transform:none}
+#ed .abas{display:flex;align-items:center;gap:2px;background:#252526;padding:0 10px;height:46px;flex:0 0 auto}
+#ed .aba{font:inherit;font-size:13.5px;color:#9A9A9A;background:transparent;border:0;border-bottom:2px solid transparent;
+  padding:0 16px;height:46px;cursor:pointer;font-family:var(--mono)}
+#ed .aba.on{color:#fff;background:#1E1E1E;border-bottom-color:var(--acc)}
+#ed .fechar{margin-left:auto;background:transparent;border:0;color:#8A8A8A;font-size:19px;cursor:pointer;padding:0 10px}
+#ed .fechar:hover{color:#fff}
+.editor{position:relative;flex:1;overflow:hidden}
+.editor pre,.editor textarea{
+  position:absolute;inset:0;margin:0;padding:22px 24px;border:0;overflow:auto;white-space:pre;word-wrap:normal;
+  font-family:var(--mono);font-size:15px;line-height:22px;tab-size:2;letter-spacing:normal;font-weight:400;
+  font-variant-ligatures:none;font-kerning:none;text-rendering:auto;
+}
+.editor pre{color:#D4D4D4;pointer-events:none}
+.editor pre code{font:inherit;font-family:inherit;font-size:inherit;line-height:inherit;letter-spacing:inherit;
+  white-space:inherit;display:block}
+.editor textarea{background:transparent;color:transparent;caret-color:#fff;resize:none;outline:none}
+.editor textarea::selection{background:rgba(58,106,168,.55)}
+.editor.ro textarea{color:transparent;caret-color:transparent;cursor:text}
+#ed .rodape{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:11px 16px;background:#1E1E1E;
+  border-top:1px solid #2A2A2A;font-family:var(--mono);font-size:12.5px;color:#7D8590}
+#ed .rodape .st{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ed .rodape .st.ok{color:#4EC9B0} #ed .rodape .st.err{color:#F48771}
+#ed .rodape button{font:inherit;font-size:12.5px;background:#2D2D2D;border:1px solid #3A3A3A;color:#C9C9C9;
+  padding:6px 13px;border-radius:6px;cursor:pointer}
+#ed .rodape button:hover{background:#3A3A3A;color:#fff}
+
+.t-com{color:#6A9955}.t-str{color:#CE9178}.t-num{color:#B5CEA8}.t-kw{color:#569CD6}
+.t-ctl{color:#C586C0}.t-fn{color:#DCDCAA}.t-typ{color:#4EC9B0}.t-var{color:#9CDCFE}
+</style>
+</head>
+<body>
+<div id="rail"><button id="btcode" title="código">&lt;/&gt;</button></div>
+<div id="palco"></div>
+<div id="cont">1 / 12</div>
+<div id="ed">
+  <div class="abas" id="edabas"><button class="fechar" id="edfechar">×</button></div>
+  <div class="editor" id="edwrap"><pre><code id="edhl"></code></pre><textarea id="edta" spellcheck="false"></textarea></div>
+  <div class="rodape"><span class="st" id="edst"></span><button id="edreset">restaurar</button></div>
+</div>
+<script>
+/* ===== imagem e algoritmos ===== */
+function rnd(s){let x=s>>>0;return()=>{x=(x*1664525+1013904223)>>>0;return x/4294967296}}
+function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+function imagemTeste(sombra){
+  const w=700,h=320,c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');
+  x.fillStyle='rgb(235,235,235)';x.fillRect(0,0,w,h);
+  x.fillStyle='rgb(60,60,60)';x.font='bold 46px Arial';x.textBaseline='top';
+  ['LIMIARIZACAO','Otsu x Adaptativo','Pillow + NumPy'].forEach((t,i)=>x.fillText(t,30,30+i*95));
+  const d=x.getImageData(0,0,w,h).data,g=new Uint8ClampedArray(w*h),r=rnd(7);
+  for(let y=0;y<h;y++)for(let i=0;i<w;i++){
+    const p=(y*w+i)*4,base=.299*d[p]+.587*d[p+1]+.114*d[p+2];
+    const s=sombra===false?1:1-.7*(i/(w-1));
+    g[y*w+i]=Math.max(0,Math.min(255,base*s+gauss(r)*3));}
+  return{dados:g,w:w,h:h};
+}
+function histograma(im){const h=new Float64Array(256);for(let i=0;i<im.dados.length;i++)h[im.dados[i]]++;return h}
+function pesosMedias(hist){
+  const n=hist.reduce((a,b)=>a+b,0),p=new Float64Array(256);
+  for(let i=0;i<256;i++)p[i]=hist[i]/n;
+  let muT=0;for(let i=0;i<256;i++)muT+=i*p[i];
+  const w0=new Float64Array(256),w1=new Float64Array(256),m0=new Float64Array(256),m1=new Float64Array(256);
+  let a=0,s=0;
+  for(let t=0;t<256;t++){a+=p[t];s+=t*p[t];w0[t]=a;w1[t]=1-a;
+    m0[t]=a>0?s/a:0;m1[t]=(1-a)>0?(muT-s)/(1-a):0;}
+  return{w0:w0,w1:w1,mu0:m0,mu1:m1};
+}
+function curvaOtsu(hist,nota){
+  const pm=pesosMedias(hist),c=new Float64Array(256);let T=0,mx=-Infinity;
+  for(let t=0;t<256;t++){let v=0;
+    if(pm.w0[t]>0&&pm.w1[t]>0){try{v=nota(pm.w0[t],pm.w1[t],pm.mu0[t],pm.mu1[t])}catch(e){v=0}}
+    if(!isFinite(v))v=0;c[t]=v;if(v>mx){mx=v;T=t}}
+  return{curva:c,T:T,max:mx,pm:pm};
+}
+function aplicaGlobal(im,T,f){const o=new Uint8ClampedArray(im.dados.length);
+  for(let i=0;i<o.length;i++)o[i]=f(im.dados[i],T);return{dados:o,w:im.w,h:im.h}}
+function mediaCaixa(src,w,h,b){
+  const r=b>>1,I=new Float64Array((w+1)*(h+1));
+  for(let y=0;y<h;y++){let l=0;for(let x=0;x<w;x++){l+=src[y*w+x];I[(y+1)*(w+1)+x+1]=I[y*(w+1)+x+1]+l}}
+  const o=new Float64Array(w*h);
+  for(let y=0;y<h;y++){const y0=Math.max(0,y-r),y1=Math.min(h,y+r+1);
+    for(let x=0;x<w;x++){const x0=Math.max(0,x-r),x1=Math.min(w,x+r+1);
+      o[y*w+x]=(I[y1*(w+1)+x1]-I[y0*(w+1)+x1]-I[y1*(w+1)+x0]+I[y0*(w+1)+x0])/((y1-y0)*(x1-x0))}}
+  return o;
+}
+function caixasGauss(s,n){const id=Math.sqrt(12*s*s/n+1);let wl=Math.floor(id);if(wl%2===0)wl--;
+  const wu=wl+2,mi=(12*s*s-n*wl*wl-4*n*wl-3*n)/(-4*wl-4),m=Math.round(mi),r=[];
+  for(let i=0;i<n;i++)r.push(i<m?wl:wu);return r}
+function mediaLocal(im,b,met){
+  if(met!=='gauss')return mediaCaixa(im.dados,im.w,im.h,b);
+  const s=.3*((b-1)*.5-1)+.8;if(s<=.3)return Float64Array.from(im.dados);
+  let cur=Float64Array.from(im.dados);
+  caixasGauss(s,3).forEach(k=>{cur=mediaCaixa(cur,im.w,im.h,Math.max(3,k))});return cur;
+}
+function aplicaAdapt(im,b,C,met,f){
+  const loc=mediaLocal(im,b,met),o=new Uint8ClampedArray(im.dados.length);
+  for(let i=0;i<o.length;i++)o[i]=f(im.dados[i],loc[i],C);
+  return{dados:o,w:im.w,h:im.h,local:loc};
+}
+function pinta(cv,im){cv.width=im.w;cv.height=im.h;
+  const ctx=cv.getContext('2d'),id=ctx.createImageData(im.w,im.h);
+  for(let i=0,j=0;i<im.dados.length;i++,j+=4){const v=im.dados[i];id.data[j]=id.data[j+1]=id.data[j+2]=v;id.data[j+3]=255}
+  ctx.putImageData(id,0,0)}
+
+/* grafico com eixos */
+function grafico(cv,hist,o){
+  o=o||{};const W=cv.width,H=cv.height,c=cv.getContext('2d');
+  const ml=74,mr=18,mt=18,mb=46,pw=W-ml-mr,ph=H-mt-mb;
+  const X=i=>ml+i/255*pw;
+  c.clearRect(0,0,W,H);c.fillStyle='#fff';c.fillRect(0,0,W,H);
+  const pico=Math.max.apply(null,Array.from(hist))||1;
+  c.strokeStyle='#DFE4EA';c.lineWidth=1;
+  for(let k=1;k<=4;k++){const y=mt+ph-ph*k/4;c.beginPath();c.moveTo(ml,y);c.lineTo(ml+pw,y);c.stroke()}
+  const pa=pw/256;
+  c.fillStyle=o.corBarra||'#8B94A3';
+  for(let i=0;i<256;i++){const a=hist[i]/pico*ph;c.fillRect(X(i),mt+ph-a,Math.max(1,pa+.4),a)}
+  if(o.curva){
+    const pc=Math.max.apply(null,Array.from(o.curva))||1;
+    c.beginPath();for(let i=0;i<256;i++){const y=mt+ph-o.curva[i]/pc*ph;i?c.lineTo(X(i),y):c.moveTo(X(i),y)}
+    c.strokeStyle='#0E7A45';c.lineWidth=3;c.stroke();
+    c.lineTo(X(255),mt+ph);c.lineTo(X(0),mt+ph);c.closePath();
+    c.globalAlpha=.14;c.fillStyle='#0E7A45';c.fill();c.globalAlpha=1;
+  }
+  if(o.otsuT!==undefined){c.strokeStyle='#0E7A45';c.lineWidth=2.5;c.setLineDash([7,5]);
+    c.beginPath();c.moveTo(X(o.otsuT),mt);c.lineTo(X(o.otsuT),mt+ph);c.stroke();c.setLineDash([])}
+  if(o.T!==undefined){c.strokeStyle='#1552E0';c.lineWidth=3;
+    c.beginPath();c.moveTo(X(o.T),mt);c.lineTo(X(o.T),mt+ph);c.stroke();
+    c.fillStyle='#1552E0';c.beginPath();c.arc(X(o.T),mt,6,0,7);c.fill()}
+  c.strokeStyle='#2E3744';c.lineWidth=2;
+  c.beginPath();c.moveTo(ml,mt);c.lineTo(ml,mt+ph);c.lineTo(ml+pw,mt+ph);c.stroke();
+  c.fillStyle='#2E3744';c.font='600 14px Segoe UI,Arial,sans-serif';c.textAlign='center';
+  [0,64,128,192,255].forEach(v=>{c.beginPath();c.moveTo(X(v),mt+ph);c.lineTo(X(v),mt+ph+6);c.stroke();
+    c.fillText(v,X(v),mt+ph+25)});
+  c.textAlign='right';c.font='600 13px Segoe UI,Arial,sans-serif';
+  for(let k=0;k<=4;k++){const y=mt+ph-ph*k/4;c.fillText(Math.round(pico*k/4).toLocaleString('pt-BR'),ml-12,y+5)}
+  c.save();c.translate(20,mt+ph/2);c.rotate(-Math.PI/2);c.textAlign='center';
+  c.font='700 13px Segoe UI,Arial,sans-serif';c.fillStyle='#2E3744';
+  c.fillText(o.rotuloY||'QUANTIDADE DE PIXELS',0,0);c.restore();
+  c.textAlign='center';c.font='700 13px Segoe UI,Arial,sans-serif';
+  c.fillText(o.rotuloX||'TOM DO PIXEL   ( 0 = PRETO   ·   255 = BRANCO )',ml+pw/2,H-8);
+}
+
+/* ===== codigo ===== */
+const FONTES={
+global:{nome:'limiar_global.js',lang:'js',src:
+`// Roda uma vez para CADA pixel da imagem.
+// pixel: o tom lido, de 0 (preto) a 255 (branco)
+// T: o limiar escolhido no controle
+// Devolva 255 para branco ou 0 para preto.
+
+function limiarGlobal(pixel, T) {
+  if (pixel > T) {
+    return 255
+  }
+  return 0
+}
+`},
+globalPy:{nome:'limiar_global.py',lang:'py',ro:true,src:
+`"""Limiarizacao global: um unico corte T para a imagem inteira.
+
+Instalar:  pip install pillow numpy
+Rodar:     python limiar_global.py documento.jpg
+"""
+
+import sys
+
+import numpy as np
+from PIL import Image
+
+
+def carregar_cinza(caminho):
+    """Abre a imagem e converte para tons de cinza (modo L: 0 a 255)."""
+    return np.array(Image.open(caminho).convert("L"), dtype=np.uint8)
+
+
+def limiar_global(cinza, T):
+    """Pixel > T vira branco (255); senao, preto (0).
+
+    Uma unica comparacao vetorizada sobre a matriz inteira:
+    nao existe laco sobre pixels.
+    """
+    return np.where(cinza > T, 255, 0).astype(np.uint8)
+
+
+def main():
+    caminho = sys.argv[1] if len(sys.argv) > 1 else "documento.jpg"
+    cinza = carregar_cinza(caminho)
+
+    for T in (60, 100, 140, 180):
+        binaria = limiar_global(cinza, T)
+        Image.fromarray(binaria).save(f"global_T{T}.png")
+        brancos = (binaria == 255).mean() * 100
+        print(f"T = {T:3d}  ->  {brancos:5.1f}% dos pixels ficaram brancos")
+
+
+if __name__ == "__main__":
+    main()
+`},
+otsu:{nome:'nota_do_corte.js',lang:'js',src:
+`// Roda uma vez para CADA corte T, de 0 a 255.
+// w0, w1: fracao de pixels no grupo escuro e no grupo claro
+// mu0, mu1: tom medio de cada grupo
+// O Otsu escolhe o T que devolver a MAIOR nota.
+
+function nota(w0, w1, mu0, mu1) {
+  const distancia = mu0 - mu1
+  return w0 * w1 * distancia * distancia
+}
+`},
+otsuPy:{nome:'otsu.py',lang:'py',ro:true,src:
+`"""Algoritmo de Otsu: o proprio histograma escolhe o corte.
+
+Instalar:  pip install pillow numpy
+Rodar:     python otsu.py documento.jpg
+"""
+
+import sys
+
+import numpy as np
+from PIL import Image
+
+
+def carregar_cinza(caminho):
+    return np.array(Image.open(caminho).convert("L"), dtype=np.uint8)
+
+
+def otsu(cinza):
+    """Testa os 256 cortes e devolve o que MAXIMIZA a variancia entre
+    classes:  sigma_B(T) = w0 * w1 * (mu0 - mu1) ** 2
+    """
+    hist = np.bincount(cinza.ravel(), minlength=256)   # pixels de cada tom
+    p = hist / hist.sum()                              # probabilidade de cada tom
+    niveis = np.arange(256)
+
+    omega0 = np.cumsum(p)                  # fracao de pixels com tom <= T
+    omega1 = 1.0 - omega0                  # fracao com tom > T
+    soma = np.cumsum(p * niveis)           # soma de i * p_i ate T
+    mu_total = soma[-1]                    # media de toda a imagem
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        mu0 = soma / omega0                        # media do grupo escuro
+        mu1 = (mu_total - soma) / omega1           # media do grupo claro
+        sigma_b = omega0 * omega1 * (mu0 - mu1) ** 2
+
+    sigma_b = np.nan_to_num(sigma_b)       # cortes com um grupo vazio viram 0
+    T = int(np.argmax(sigma_b))            # o corte de maior nota
+    return T, sigma_b
+
+
+def main():
+    caminho = sys.argv[1] if len(sys.argv) > 1 else "documento.jpg"
+    cinza = carregar_cinza(caminho)
+
+    T, sigma_b = otsu(cinza)
+    print(f"Corte escolhido pelo Otsu: T = {T}")
+    print(f"Nota desse corte: {sigma_b[T]:.1f}")
+
+    binaria = np.where(cinza > T, 255, 0).astype(np.uint8)
+    Image.fromarray(binaria).save("otsu.png")
+
+
+if __name__ == "__main__":
+    main()
+`},
+adapt:{nome:'limiar_adaptativo.js',lang:'js',src:
+`// Roda uma vez para CADA pixel.
+// pixel: o tom lido
+// media: a media dos vizinhos dentro do bloco
+// C: a folga escolhida no controle
+
+function limiarAdaptativo(pixel, media, C) {
+  const corteLocal = media - C
+  if (pixel > corteLocal) {
+    return 255
+  }
+  return 0
+}
+`},
+adaptPy:{nome:'adaptativo.py',lang:'py',ro:true,src:
+`"""Limiarizacao adaptativa: um corte diferente para cada pixel.
+
+bloco e C nao sao o corte: sao os dois parametros que VOCE escolhe.
+O corte de cada pixel e calculado como  media_dos_vizinhos - C.
+
+Instalar:  pip install pillow numpy
+Rodar:     python adaptativo.py documento.jpg
+"""
+
+import sys
+
+import numpy as np
+from PIL import Image, ImageFilter
+
+
+def carregar_cinza(caminho):
+    return np.array(Image.open(caminho).convert("L"), dtype=np.uint8)
+
+
+def media_local(cinza, bloco):
+    """Media simples de cada janela bloco x bloco, pela IMAGEM INTEGRAL:
+    a soma de qualquer retangulo sai com 4 acessos, seja qual for o bloco.
+    """
+    r = bloco // 2
+    pad = np.pad(cinza.astype(np.float64), r, mode="edge")
+    integral = pad.cumsum(axis=0).cumsum(axis=1)
+    integral = np.pad(integral, ((1, 0), (1, 0)))
+    h, w = cinza.shape
+    soma = (integral[bloco:bloco + h, bloco:bloco + w]
+            - integral[0:h, bloco:bloco + w]
+            - integral[bloco:bloco + h, 0:w]
+            + integral[0:h, 0:w])
+    return soma / (bloco * bloco)
+
+
+def media_ponderada(cinza, bloco):
+    """Media ponderada por uma gaussiana: os vizinhos mais proximos do
+    centro pesam mais. O sigma vem do tamanho do bloco.
+    """
+    sigma = 0.3 * ((bloco - 1) * 0.5 - 1) + 0.8
+    borrada = Image.fromarray(cinza).filter(ImageFilter.GaussianBlur(radius=sigma))
+    return np.array(borrada, dtype=np.float64)
+
+
+def limiar_adaptativo(cinza, bloco=25, C=10, metodo="media"):
+    """bloco: tamanho da vizinhanca, sempre impar (precisa de pixel central).
+    C: folga. O pixel so vira preto se for pelo menos C tons mais escuro
+    que os vizinhos dele.
+    """
+    if bloco % 2 == 0 or bloco < 3:
+        raise ValueError("bloco precisa ser impar e >= 3")
+
+    local = media_local(cinza, bloco) if metodo == "media" else media_ponderada(cinza, bloco)
+    corte = local - C                      # um corte para CADA pixel
+    return np.where(cinza > corte, 255, 0).astype(np.uint8)
+
+
+def main():
+    caminho = sys.argv[1] if len(sys.argv) > 1 else "documento.jpg"
+    cinza = carregar_cinza(caminho)
+
+    # 25 e 10 foram os valores que deram o melhor resultado nos nossos testes
+    Image.fromarray(limiar_adaptativo(cinza, 25, 10, "media")).save("adapt_media.png")
+    Image.fromarray(limiar_adaptativo(cinza, 25, 10, "gauss")).save("adapt_ponderada.png")
+    print("Imagens salvas: adapt_media.png e adapt_ponderada.png")
+
+
+if __name__ == "__main__":
+    main()
+`}
+};
+const PADRAO={global:(p,T)=>p>T?255:0,otsu:(w0,w1,m0,m1)=>w0*w1*(m0-m1)*(m0-m1),adapt:(p,m,C)=>p>m-C?255:0};
+const FN={global:PADRAO.global,otsu:PADRAO.otsu,adapt:PADRAO.adapt};
+const EDIT={},NOMEFN={global:'limiarGlobal',otsu:'nota',adapt:'limiarAdaptativo'};
+function compila(ch,src){
+  const f=new Function(src+'\nreturn '+NOMEFN[ch]+';')();
+  if(typeof f!=='function')throw new Error('função '+NOMEFN[ch]+' não encontrada');
+  const t={global:()=>f(200,100),otsu:()=>f(.5,.5,40,200),adapt:()=>f(200,150,10)};
+  if(typeof t[ch]()!=='number')throw new Error('a função precisa devolver um número');
+  return f;
+}
+const EST={img:imagemTeste(true),limpa:imagemTeste(false),T:127,bloco:25,C:10,metodo:'media'};
+function recalcula(){EST.hist=histograma(EST.img);EST.histLimpa=histograma(EST.limpa);
+  EST.ot=curvaOtsu(EST.hist,FN.otsu)}
+recalcula();
+const fmt=(x,n)=>x.toFixed(n).replace('.',',');
+
+/* ===== segmentacao: graos, rotulagem de regioes ===== */
+function imagemGraos(){
+  const w=520,h=330,c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d'),r=rnd(11);
+  x.fillStyle='rgb(38,38,38)';x.fillRect(0,0,w,h);
+  for(let gy=0;gy<4;gy++)for(let gx=0;gx<5;gx++){
+    const cx=52+gx*104+(r()-.5)*30,cy=46+gy*82+(r()-.5)*22;
+    const rx=24+r()*10,ry=15+r()*6,ang=r()*Math.PI,tom=Math.round(158+r()*38);
+    x.save();x.translate(cx,cy);x.rotate(ang);
+    x.fillStyle='rgb('+tom+','+tom+','+tom+')';
+    x.beginPath();x.ellipse(0,0,rx,ry,0,0,7);x.fill();x.restore();}
+  const d=x.getImageData(0,0,w,h).data,g=new Uint8ClampedArray(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++)g[j]=Math.max(0,Math.min(255,d[i]+gauss(r)*6));
+  return{dados:g,w:w,h:h};
+}
+function rotulaRegioes(bin,w,h){
+  const lab=new Int32Array(w*h),pai=[0];let prox=1;
+  const find=x=>{while(pai[x]!==x){pai[x]=pai[pai[x]];x=pai[x]}return x};
+  const uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)pai[b]=a};
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x;if(bin[i]!==255)continue;
+    const v=[];
+    if(x>0&&lab[i-1])v.push(lab[i-1]);
+    if(y>0&&lab[i-w])v.push(lab[i-w]);
+    if(y>0&&x>0&&lab[i-w-1])v.push(lab[i-w-1]);
+    if(y>0&&x<w-1&&lab[i-w+1])v.push(lab[i-w+1]);
+    if(!v.length){pai[prox]=prox;lab[i]=prox++;}
+    else{const m=Math.min.apply(null,v);lab[i]=m;v.forEach(k=>uni(m,k));}}
+  const area={};
+  for(let i=0;i<lab.length;i++)if(lab[i]){const r=find(lab[i]);lab[i]=r;area[r]=(area[r]||0)+1}
+  return{lab:lab,area:area};
+}
+function hsl(h,s,l){
+  const f=n=>{const k=(n+h/30)%12,a=s*Math.min(l,1-l);
+    return Math.round(255*(l-a*Math.max(-1,Math.min(k-3,Math.min(9-k,1)))))};
+  return[f(0),f(8),f(4)];
+}
+function pintaRotulos(cv,res,w,h,minArea){
+  cv.width=w;cv.height=h;
+  const ctx=cv.getContext('2d'),id=ctx.createImageData(w,h),cor={};let n=0;
+  Object.keys(res.area).forEach(k=>{if(res.area[k]>=minArea){cor[k]=hsl((n*137.5)%360,.6,.58);n++}});
+  for(let i=0;i<w*h;i++){const c=res.lab[i]?cor[res.lab[i]]:null,j=i*4;
+    if(c){id.data[j]=c[0];id.data[j+1]=c[1];id.data[j+2]=c[2]}
+    else{id.data[j]=id.data[j+1]=id.data[j+2]=14}
+    id.data[j+3]=255}
+  ctx.putImageData(id,0,0);return n;
+}
+
+/* ===== slides ===== */
+const SL=[
+{id:'capa',escuro:true,html:`
+<div class="col jb" style="height:100%">
+  <div class="col g24" style="margin-top:70px"><h1>Limiarização<br>e Segmentação</h1></div>
+  <div class="col g12">
+    <canvas id="rampa" width="1372" height="78" style="width:1372px;height:78px;border-radius:10px"></canvas>
+    <div class="row jb"><span class="sm">0 · preto</span><span class="sm">255 · branco</span></div>
+  </div>
+  <div class="row g40" style="margin-bottom:4px">
+    <span class="lead" style="color:#EDF0F4">João Gabriel Romanin Seti</span>
+    <span class="lead" style="color:#EDF0F4">Murilo Bertalha Volante</span>
+  </div>
+</div>`,
+init(){const c=document.getElementById('rampa'),x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,c.width,0);g.addColorStop(0,'#000');g.addColorStop(1,'#fff');
+  x.fillStyle=g;x.fillRect(0,0,c.width,c.height);
+  x.fillStyle='#1552E0';x.fillRect(c.width/2-3,0,6,c.height);}},
+
+{id:'segmentacao',html:`
+<h2>Segmentar é dividir a imagem em regiões</h2>
+<p class="lead mt16" style="max-width:1200px">Cada pixel recebe um rótulo que diz a qual região ele pertence: <b>objeto</b> ou <b>fundo</b>. Enquanto isso não acontece, a foto é só uma tabela de números para o computador.</p>
+<div class="row g24 mt32">
+  <div class="col g12" style="width:441px">
+    <span class="rotulo"><span class="acc">1</span> &nbsp;Original</span>
+    <canvas id="sg0" class="quadro" style="width:441px;height:280px"></canvas>
+    <p class="sm">Para o computador, só números de 0 a 255.</p>
+  </div>
+  <div class="col g12" style="width:441px">
+    <span class="rotulo"><span class="acc">2</span> &nbsp;Segmentada</span>
+    <canvas id="sg1" class="quadro" style="width:441px;height:280px"></canvas>
+    <p class="sm">Cada pixel virou grão (branco) ou fundo (preto).</p>
+  </div>
+  <div class="col g12" style="width:441px">
+    <span class="rotulo on"><span class="acc">3</span> &nbsp;Rotulada</span>
+    <canvas id="sg2" class="quadro" style="width:441px;height:280px"></canvas>
+    <p class="sm"><b id="sgN"></b> grãos: cada um virou um objeto separado, que dá para contar e medir.</p>
+  </div>
+</div>
+<div class="row jc mt32">
+  <div class="card row g32 ac" style="padding:22px 28px">
+    <div class="grade" id="sgMat" style="grid-template-columns:repeat(7,62px);gap:4px"></div>
+    <p class="sm" style="width:420px">Pixels reais da borda de um grão, lidos da imagem da esquerda. Valores baixos são fundo, valores altos são grão. É só disso que a segmentação dispõe para decidir.</p>
+  </div>
+</div>`,
+init(){
+  if(!EST.graos){EST.graos=imagemGraos();
+    const h=histograma(EST.graos),T=curvaOtsu(h,FN.otsu).T;
+    EST.graosBin=aplicaGlobal(EST.graos,T,FN.global);
+    EST.graosLab=rotulaRegioes(EST.graosBin.dados,EST.graos.w,EST.graos.h);}
+  pinta(document.getElementById('sg0'),EST.graos);
+  pinta(document.getElementById('sg1'),EST.graosBin);
+  const n=pintaRotulos(document.getElementById('sg2'),EST.graosLab,EST.graos.w,EST.graos.h,120);
+  document.getElementById('sgN').textContent=n;
+  const g=EST.graos,w=g.w;let ax=0,ay=0;
+  for(let y=40;y<g.h-40&&!ax;y++)for(let x=20;x<w-30;x++)
+    if(g.dados[y*w+x]<90&&g.dados[y*w+x+4]>140){ax=x-2;ay=y-2;break}
+  const mat=document.getElementById('sgMat');
+  for(let r=0;r<5;r++)for(let c=0;c<7;c++){
+    const v=g.dados[(ay+r)*w+(ax+c)];
+    const d=document.createElement('div');d.className='cel';
+    d.style.cssText='height:30px;aspect-ratio:auto;font-size:15px;font-weight:700;border-radius:4px;'+
+      'background:'+(v>120?'#E9F0FE':'#F0F2F5')+';color:'+(v>120?'#1552E0':'#6B7684')+
+      ';box-shadow:inset 0 0 0 1px #C9D0DA';
+    d.textContent=v;mat.appendChild(d);}}},
+
+{id:'segmentacao2',html:`
+<h2>A ponte entre a imagem e a informação</h2>
+<div class="row g16 mt24">
+  <div class="card plain col g8 grow" style="padding:22px 24px"><span class="rotulo"><span class="acc">1</span></span>
+    <h3 style="font-size:23px">Aquisição</h3><p class="sm">Tirar a foto</p></div>
+  <div class="card plain col g8 grow" style="padding:22px 24px"><span class="rotulo"><span class="acc">2</span></span>
+    <h3 style="font-size:23px">Pré-processar</h3><p class="sm">Tirar ruído, ajustar brilho</p></div>
+  <div class="card col g8 grow" style="padding:22px 24px;background:#E9F0FE;border:2px solid #1552E0">
+    <span class="rotulo on"><span class="acc">3</span></span>
+    <h3 style="font-size:23px">Segmentação</h3><p class="sm">Separar objeto e fundo</p></div>
+  <div class="card plain col g8 grow" style="padding:22px 24px"><span class="rotulo"><span class="acc">4</span></span>
+    <h3 style="font-size:23px">Medir</h3><p class="sm">Área, cor, formato</p></div>
+  <div class="card plain col g8 grow" style="padding:22px 24px"><span class="rotulo"><span class="acc">5</span></span>
+    <h3 style="font-size:23px">Reconhecer</h3><p class="sm">Decidir o que é cada objeto</p></div>
+</div>
+<p class="lead mt24"><b>Se a segmentação erra, tudo o que vem depois erra junto.</b></p>
+<table class="mt24" style="font-size:23px">
+  <tr><th style="width:460px;font-size:15px">Técnica de segmentação</th><th style="font-size:15px">Como separa as regiões</th></tr>
+  <tr class="on"><td><b>Limiarização</b></td><td>Pelo tom do pixel: acima ou abaixo de um valor limite <span class="tt">T</span></td></tr>
+  <tr><td>Detecção de bordas</td><td>Procura onde o tom muda de repente</td></tr>
+  <tr><td>Crescimento de regiões</td><td>Começa num ponto e junta os vizinhos parecidos</td></tr>
+  <tr><td>Agrupamento (k-means)</td><td>Junta os pixels de cor parecida em grupos</td></tr>
+  <tr><td>Redes neurais</td><td>Aprende a separar com milhares de exemplos</td></tr>
+</table>
+<p class="lead mt32" style="font-size:24px">Usada em <b>medicina</b> para contar células, em <b>documentos</b> para OCR, na <b>indústria</b> para achar defeitos e no <b>agronegócio</b> para contar grãos.<br>A limiarização é a mais simples e a mais usada, e é o tema deste trabalho.</p>`},
+
+
+{id:'oque',html:`
+<h2>Limiarizar é escolher um corte</h2>
+<div class="row g24 mt24">
+  <div class="card grow" style="padding:26px 30px">
+    <p class="lead"><b>Se o pixel for mais claro que T, ele vira branco.<br>Se for mais escuro, vira preto.</b></p>
+    <p class="sm mt16 tt">g(x, y) = 255 se f(x, y) &gt; T, senão g(x, y) = 0</p>
+  </div>
+  <div class="card" style="width:400px;padding:26px 30px">
+    <p>Cada pixel é um número de <b>0</b> a <b>255</b>. Depois do corte só restam dois valores: a imagem vira <b>preto e branco</b>.</p>
+  </div>
+</div>
+<div class="row jc mt24" style="margin-bottom:16px">
+  <span class="barra"><span class="ctrl"><span class="nome">Limiar T</span>
+  <input type="range" id="pxT" min="0" max="255" value="100" style="width:420px">
+  <span class="val" id="pxTv">100</span></span></span>
+</div>
+<div class="row g40">
+  <div class="col g12"><span class="rotulo">Os números da imagem</span><div class="grade" id="pxA"></div></div>
+  <div class="col g12"><span class="rotulo on">Depois do corte</span><div class="grade" id="pxB"></div></div>
+</div>`,
+init(){
+  const COLS=16,ROWS=11,base=c=>Math.round(225-c*9.33),cels=[];
+  const A=document.getElementById('pxA'),B=document.getElementById('pxB');
+  A.style.gridTemplateColumns=B.style.gridTemplateColumns='repeat(16,36px)';
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const bg=base(c),letra=(r===1||r===2)?(c>=2&&c<=13):(r>=3&&r<=9?(c===7||c===8):false);
+    const v=letra?Math.round(bg*.28):bg;
+    const a=document.createElement('div');a.className='cel';
+    a.style.background='rgb('+v+','+v+','+v+')';a.style.color=v>130?'#1A1F28':'#EDF0F4';
+    a.style.boxShadow='inset 0 0 0 1px rgba(11,15,21,.12)';a.textContent=v;A.appendChild(a);
+    const b=document.createElement('div');b.className='cel';B.appendChild(b);cels.push({v:v,b:b});}
+  const s=document.getElementById('pxT'),lab=document.getElementById('pxTv');
+  const r=()=>{const T=+s.value;lab.textContent=T;
+    cels.forEach(o=>{const br=o.v>T;o.b.style.background=br?'#fff':'#0B0F15';
+      o.b.style.boxShadow='inset 0 0 0 1px '+(br?'#9BA5B4':'#0B0F15');
+      o.b.style.color=br?'#6B7684':'#5A6675';o.b.textContent=br?'255':'0';});};
+  s.oninput=r;r();}},
+
+{id:'histo',html:`
+<div class="row jb ae">
+  <h2>O histograma</h2>
+  <span class="pill" id="hpill"><span class="deslizante"></span>
+    <button data-k="atual" class="on">imagem em uso</button><button data-k="limpa">caso ideal</button></span>
+</div>
+<div class="row g32 mt24">
+  <div class="col g16" style="width:460px">
+    <div style="position:relative;width:460px;height:210px">
+      <canvas id="hA" class="quadro" style="position:absolute;inset:0;width:460px;height:210px;transition:opacity .4s"></canvas>
+      <canvas id="hB" class="quadro" style="position:absolute;inset:0;width:460px;height:210px;opacity:0;transition:opacity .4s"></canvas>
+    </div>
+    <div class="card plain"><h3 style="font-size:20px">Eixo horizontal</h3>
+      <p class="sm mt8">O tom do pixel, de 0 (preto) a 255 (branco).</p></div>
+    <div class="card plain"><h3 style="font-size:20px">Eixo vertical</h3>
+      <p class="sm mt8">Quantos pixels da imagem têm aquele tom.</p></div>
+  </div>
+  <div class="col grow">
+    <canvas id="hC" width="880" height="600" class="quadro" style="width:880px;height:600px"></canvas>
+  </div>
+</div>`,
+init(){
+  const A=document.getElementById('hA'),B=document.getElementById('hB'),C=document.getElementById('hC');
+  pinta(A,EST.img);pinta(B,EST.limpa);
+  const alvo={atual:EST.hist,limpa:EST.histLimpa};
+  let cur=Float64Array.from(EST.hist),anim=null;
+  const des=(h,T)=>grafico(C,h,{otsuT:T});
+  des(cur,curvaOtsu(EST.hist,FN.otsu).T);
+  const pill=document.getElementById('hpill'),desl=pill.querySelector('.deslizante');
+  const pos=()=>{const b=pill.querySelector('button.on');desl.style.width=b.offsetWidth+'px';
+    desl.style.transform='translateX('+(b.offsetLeft-4)+'px)';};
+  setTimeout(pos,0);
+  pill.onclick=e=>{const b=e.target.closest('button');if(!b||b.classList.contains('on'))return;
+    pill.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');pos();
+    const k=b.dataset.k,al=alvo[k],Tf=curvaOtsu(al,FN.otsu).T,ini=Float64Array.from(cur),t0=performance.now();
+    A.style.opacity=k==='atual'?1:0;B.style.opacity=k==='atual'?0:1;
+    cancelAnimationFrame(anim);
+    const passo=()=>{const p=Math.min(1,(performance.now()-t0)/480),e2=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+      for(let i=0;i<256;i++)cur[i]=ini[i]+(al[i]-ini[i])*e2;des(cur,Tf);
+      if(p<1)anim=requestAnimationFrame(passo);};
+    anim=requestAnimationFrame(passo);};}},
+
+{id:'global',codigo:['global','globalPy'],html:`
+<h2>Limiar global: uma régua para a imagem inteira</h2>
+<div class="row jc mt24" style="margin-bottom:18px">
+  <span class="barra"><span class="ctrl"><span class="nome">Limiar T</span>
+  <input type="range" id="glT" min="0" max="255" value="127" style="width:480px">
+  <span class="val" id="glTv">127</span></span></span>
+</div>
+<div class="row g32 jc">
+  <div class="col g12"><span class="rotulo">Original</span>
+    <canvas id="glA" class="quadro" style="width:600px;height:275px"></canvas></div>
+  <div class="col g12"><span class="rotulo on">Resultado</span>
+    <canvas id="glB" class="quadro" style="width:600px;height:275px"></canvas></div>
+</div>
+<canvas id="glH" width="1372" height="290" class="quadro mt24" style="width:1372px;height:290px"></canvas>`,
+init(){
+  const s=document.getElementById('glT'),v=document.getElementById('glTv');
+  const A=document.getElementById('glA'),B=document.getElementById('glB'),H=document.getElementById('glH');
+  pinta(A,EST.img);
+  const r=()=>{const T=+s.value;EST.T=T;v.textContent=T;
+    pinta(B,aplicaGlobal(EST.img,T,FN.global));grafico(H,EST.hist,{T:T});};
+  s.value=EST.T;s.oninput=r;r();}},
+
+{id:'otsu',html:`
+<h2>Otsu: o computador escolhe o corte</h2>
+<div class="row g40 mt24 ac">
+  <div class="col g12">
+    <span class="rotulo">Uma imagem de 6 pixels</span>
+    <div class="row g8 ac" id="otPix"></div>
+  </div>
+  <div class="col g12 grow">
+    <span class="rotulo">Nota de cada corte</span>
+    <div class="col" id="otBar" style="gap:10px"></div>
+  </div>
+</div>
+<table class="clicavel mt32" id="otTab" style="font-size:16px"></table>`,
+init(){
+  const vals=[20,40,60,180,200,220],N=6;
+  const pix=document.getElementById('otPix');
+  const quads=vals.map(v=>{const d=document.createElement('div');
+    d.style.cssText='width:76px;height:76px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:18px;font-weight:700;border:2px solid #9BA5B4;box-shadow:var(--sh);';
+    d.style.background='rgb('+v+','+v+','+v+')';d.style.color=v>128?'#1A1F28':'#EDF0F4';d.textContent=v;
+    pix.appendChild(d);return d;});
+  const corte=document.createElement('div');
+  corte.style.cssText='width:6px;height:96px;background:var(--acc);border-radius:3px;position:absolute;box-shadow:0 2px 8px rgba(21,82,224,.5);transition:transform .28s cubic-bezier(.3,.8,.3,1)';
+  pix.style.position='relative';pix.appendChild(corte);
+
+  const L=vals.slice(0,5).map((T,i)=>{
+    const e=vals.slice(0,i+1),c=vals.slice(i+1);
+    const se=e.reduce((a,b)=>a+b,0),sc=c.reduce((a,b)=>a+b,0);
+    const w0=e.length/N,w1=c.length/N,m0=se/e.length,m1=sc/c.length;
+    return{T:T,i:i,e:e,c:c,se:se,sc:sc,w0:w0,w1:w1,m0:m0,m1:m1,nota:FN.otsu(w0,w1,m0,m1)};});
+  const melhor=L.reduce((a,b)=>b.nota>a.nota?b:a),mx=melhor.nota;
+  const tab=document.getElementById('otTab'),bars=document.getElementById('otBar');
+
+  tab.innerHTML='<tr><th style="width:110px">Corte</th>'+
+    '<th style="width:150px">ω₀ = n₀ / N</th><th style="width:290px">μ₀ = soma / n₀</th>'+
+    '<th style="width:150px">ω₁ = n₁ / N</th><th style="width:290px">μ₁ = soma / n₁</th>'+
+    '<th>Nota = ω₀ · ω₁ · (μ₀ − μ₁)²</th></tr>';
+
+  const sel=o=>{
+    tab.querySelectorAll('tr').forEach(t=>t.classList.remove('on'));
+    const tr=tab.querySelector('tr[data-i="'+o.i+'"]');if(tr)tr.classList.add('on');
+    bars.querySelectorAll('.bl').forEach(b=>b.style.opacity=.4);
+    const bl=bars.querySelector('.bl[data-i="'+o.i+'"]');if(bl)bl.style.opacity=1;
+    corte.style.transform='translate('+(quads[o.i].offsetLeft+quads[o.i].offsetWidth+1)+'px,-10px)';
+  };
+  L.forEach(o=>{
+    const tr=document.createElement('tr');tr.dataset.i=o.i;
+    const d=o.m0-o.m1, q=d*d;
+    tr.innerHTML='<td class="tt">T = '+o.T+'</td>'+
+      '<td class="tt" style="font-size:15px">'+o.e.length+'/'+N+' = '+fmt(o.w0,2)+'</td>'+
+      '<td class="tt" style="font-size:15px">('+o.e.join('+')+') / '+o.e.length+' = '+fmt(o.m0,0)+'</td>'+
+      '<td class="tt" style="font-size:15px">'+o.c.length+'/'+N+' = '+fmt(o.w1,2)+'</td>'+
+      '<td class="tt" style="font-size:15px">('+o.c.join('+')+') / '+o.c.length+' = '+fmt(o.m1,0)+'</td>'+
+      '<td class="tt" style="font-size:15px;line-height:1.6">'+fmt(o.w0,2)+' · '+fmt(o.w1,2)+' · ('+fmt(o.m0,0)+' − '+fmt(o.m1,0)+')²<br>= '+
+      fmt(o.w0*o.w1,2)+' · '+q.toLocaleString('pt-BR')+' = <b>'+fmt(o.nota,0)+'</b></td>';
+    tr.onclick=()=>sel(o);tab.appendChild(tr);
+    const w=document.createElement('div');w.className='bl';w.dataset.i=o.i;
+    w.style.cssText='display:flex;align-items:center;gap:12px;cursor:pointer;transition:opacity .2s';
+    w.innerHTML='<span class="tt" style="width:62px;font-size:15px;color:var(--txt)">T='+o.T+'</span>'+
+      '<span style="height:24px;border-radius:5px;width:'+(o.nota/mx*300)+'px;background:'+(o===melhor?'var(--acc)':'#8FCBA8')+';box-shadow:var(--sh)"></span>'+
+      '<span class="tt" style="font-size:15px;font-weight:700;color:'+(o===melhor?'var(--acc)':'var(--txt)')+'">'+fmt(o.nota,0)+'</span>';
+    w.onclick=()=>sel(o);bars.appendChild(w);});
+  setTimeout(()=>sel(melhor),30);}},
+
+{id:'otsulab',codigo:['otsu','otsuPy'],html:`
+<div class="row jb ae">
+  <h2>O mesmo cálculo na imagem inteira</h2>
+  <div class="row g16 ac"><span class="rotulo">Otsu escolheu</span>
+    <span class="tt" style="font-size:46px;font-weight:700;color:var(--acc2)" id="olT">T = 0</span></div>
+</div>
+<div class="row jc mt16" style="margin-bottom:14px">
+  <span class="barra"><span class="ctrl"><span class="nome">inspecionar o corte</span>
+  <input type="range" id="olS" min="0" max="255" value="83" style="width:440px">
+  <span class="val" id="olSv">83</span></span></span>
+</div>
+<canvas id="olC" width="1372" height="286" class="quadro" style="width:1372px;height:286px"></canvas>
+<div class="row g32 mt24">
+  <div class="col g16 grow">
+    <div class="contas" id="olCont"></div>
+  </div>
+  <div class="col g12"><span class="rotulo on">Resultado com o corte do Otsu</span>
+    <canvas id="olB" class="quadro" style="width:560px;height:256px"></canvas></div>
+</div>`,
+init(){
+  const s=document.getElementById('olS'),v=document.getElementById('olSv'),T=document.getElementById('olT');
+  const C=document.getElementById('olC'),B=document.getElementById('olB'),ct=document.getElementById('olCont');
+  const o=curvaOtsu(EST.hist,FN.otsu);EST.ot=o;
+  T.textContent='T = '+o.T;pinta(B,aplicaGlobal(EST.img,o.T,FN.global));
+  const cel=(cab,vlr,cls)=>'<div class="conta '+(cls||'')+'"><span class="cab">'+cab+'</span><span class="vlr">'+vlr+'</span></div>';
+  const r=()=>{const t=+s.value;v.textContent=t;
+    grafico(C,EST.hist,{curva:o.curva,T:t,otsuT:o.T,rotuloY:'PIXELS  ·  NOTA'});
+    const p=o.pm;
+    ct.innerHTML=
+      cel('corte inspecionado','T = '+t)+
+      cel('ω₀ · grupo escuro',fmt(p.w0[t],3))+
+      cel('ω₁ · grupo claro',fmt(p.w1[t],3))+
+      cel('μ₀ · média escura',fmt(p.mu0[t],1))+
+      cel('μ₁ · média clara',fmt(p.mu1[t],1))+
+      cel('nota = ω₀ · ω₁ · (μ₀ − μ₁)²',fmt(o.curva[t],0))+
+      cel('maior nota entre os 256 cortes',fmt(o.max,0)+'  em T = '+o.T,'on fim');};
+  s.oninput=r;r();}},
+
+{id:'adapt',html:`
+<h2>Adaptativo: uma régua para cada pixel</h2>
+<p class="lead mt16" style="max-width:1240px">O global e o Otsu usam <b>um corte só</b> para a imagem inteira, e por isso falham na sombra. O adaptativo calcula <b>um corte para cada pixel</b>, a partir da vizinhança dele.</p>
+<div class="card mt24 row jc" style="padding:28px 30px;background:#E9F0FE;border:2px solid #1552E0">
+  <span class="tt" style="font-size:30px;font-weight:700;color:#0B0F15">corte do pixel  =  média dos vizinhos  −  C</span>
+</div>
+<div class="grow row ac"><div class="row g32 jc" style="width:100%;align-items:stretch">
+  <div class="card plain col g20" style="width:432px;padding:44px 40px">
+    <svg viewBox="0 0 64 64" width="74" height="74" fill="none" stroke="#0B0F15" stroke-width="3" stroke-linecap="round">
+      <rect x="6" y="6" width="52" height="52" rx="5"/>
+      <path d="M6 23.3h52M6 40.6h52M23.3 6v52M40.6 6v52"/>
+      <rect x="23.3" y="23.3" width="17.3" height="17.3" fill="#1552E0" stroke="none"/>
+    </svg>
+    <h3>O bloco</h3>
+    <p class="sm">O tamanho da vizinhança olhada em volta de cada pixel. Sempre ímpar, para existir um pixel central exato.</p>
+  </div>
+  <div class="card plain col g20" style="width:432px;padding:44px 40px">
+    <svg viewBox="0 0 64 64" width="74" height="74" fill="none" stroke="#0B0F15" stroke-width="3" stroke-linecap="round">
+      <path d="M6 20h52"/>
+      <path d="M6 46h52" stroke="#1552E0" stroke-dasharray="7 5"/>
+      <path d="M32 22v20M24 35l8 8 8-8" stroke="#1552E0"/>
+    </svg>
+    <h3>A folga C</h3>
+    <p class="sm">O quanto o corte desce abaixo da média. O pixel só vira preto se for pelo menos C tons mais escuro que os vizinhos.</p>
+  </div>
+  <div class="card plain col g20" style="width:432px;padding:44px 40px">
+    <svg viewBox="0 0 64 64" width="74" height="74" fill="none" stroke="#0B0F15" stroke-width="3" stroke-linecap="round">
+      <path d="M6 54h52"/>
+      <rect x="9" y="42" width="8" height="12" fill="#C9D0DA" stroke="none"/>
+      <rect x="20" y="31" width="8" height="23" fill="#9BA5B4" stroke="none"/>
+      <rect x="31" y="16" width="8" height="38" fill="#1552E0" stroke="none"/>
+      <rect x="42" y="31" width="8" height="23" fill="#9BA5B4" stroke="none"/>
+      <rect x="53" y="42" width="5" height="12" fill="#C9D0DA" stroke="none"/>
+    </svg>
+    <h3>O peso dos vizinhos</h3>
+    <p class="sm">Na <b>média simples</b> todos os vizinhos pesam igual. Na <b>média ponderada (gaussiana)</b>, os mais próximos do centro pesam mais.</p>
+  </div>
+</div></div>`},
+
+{id:'adaptlab',codigo:['adapt','adaptPy'],html:`
+<h2>Cada pixel comparado com a vizinhança dele</h2>
+<div class="barraTopo mt24" style="margin-bottom:20px">
+  <span class="pill" id="adPill"><span class="deslizante"></span>
+    <button data-m="media" class="on">média simples</button><button data-m="gauss">média ponderada (gaussiana)</button></span>
+  <span class="ctrl"><span class="nome">bloco</span>
+    <input type="range" id="adB" min="3" max="151" step="2" value="25" style="width:240px"><span class="val" id="adBv">25</span></span>
+  <span class="ctrl"><span class="nome">folga C</span>
+    <input type="range" id="adC" min="0" max="40" value="10" style="width:210px"><span class="val" id="adCv">10</span></span>
+</div>
+<div class="row g32 jc">
+  <div class="col g12"><span class="rotulo">Original · clique para mover o ponto</span>
+    <canvas id="adA" class="quadro" style="width:600px;height:275px;cursor:crosshair"></canvas></div>
+  <div class="col g12"><span class="rotulo on">Resultado</span>
+    <canvas id="adB2" class="quadro" style="width:600px;height:275px"></canvas></div>
+</div>
+<div class="contas jc mt24" id="adCont" style="justify-content:center"></div>`,
+init(){
+  const A=document.getElementById('adA'),B=document.getElementById('adB2'),ct=document.getElementById('adCont');
+  const sb=document.getElementById('adB'),sc=document.getElementById('adC');
+  const vb=document.getElementById('adBv'),vc=document.getElementById('adCv');
+  const pill=document.getElementById('adPill'),desl=pill.querySelector('.deslizante');
+  const pos=()=>{const b=pill.querySelector('button.on');desl.style.width=b.offsetWidth+'px';
+    desl.style.transform='translateX('+(b.offsetLeft-4)+'px)';};
+  if(!EST.pt) EST.pt={x:Math.round(EST.img.w*.88),y:Math.round(EST.img.h*.93)};
+  const pt=EST.pt;
+  const cel=(cab,vlr,cls)=>'<div class="conta '+(cls||'')+'"><span class="cab">'+cab+'</span><span class="vlr">'+vlr+'</span></div>';
+  const orig=()=>{pinta(A,EST.img);const c=A.getContext('2d'),r=(+sb.value)>>1;
+    c.strokeStyle='#1552E0';c.lineWidth=3;c.strokeRect(pt.x-r,pt.y-r,+sb.value,+sb.value);
+    c.fillStyle='#1552E0';c.fillRect(pt.x-2,pt.y-2,4,4);};
+  const r=()=>{
+    const b=+sb.value,C=+sc.value;EST.bloco=b;EST.C=C;vb.textContent=b;vc.textContent=C;
+    const res=aplicaAdapt(EST.img,b,C,EST.metodo,FN.adapt);pinta(B,res);orig();
+    const i=pt.y*EST.img.w+pt.x,val=EST.img.dados[i];
+    const outro=mediaLocal(EST.img,b,EST.metodo==='media'?'gauss':'media');
+    const mA=res.local[i],mO=outro[i];
+    const simples=EST.metodo==='media'?mA:mO,pond=EST.metodo==='media'?mO:mA;
+    const tl=mA-C,branco=res.dados[i]===255,sg=fmt(.3*((b-1)*.5-1)+.8,1);
+    ct.innerHTML=
+      cel('pixel',val)+
+      cel('média simples',fmt(simples,1),EST.metodo==='media'?'on':'')+
+      cel('média ponderada (gaussiana) · sigma '+sg,fmt(pond,1),EST.metodo==='gauss'?'on':'')+
+      cel('corte local = média − C',fmt(mA,1)+' − '+C+' = '+fmt(tl,1))+
+      cel('decisão do adaptativo',val+(branco?' > ':' ≤ ')+fmt(tl,1)+' → '+(branco?'BRANCO':'PRETO'),'fim')+
+      cel('no mesmo pixel, com o corte global T = '+EST.T,
+          val+(val>EST.T?' > ':' ≤ ')+EST.T+' → '+(val>EST.T?'BRANCO':'PRETO'));};
+  A.onclick=e=>{const q=A.getBoundingClientRect();
+    pt.x=Math.max(0,Math.min(EST.img.w-1,Math.round((e.clientX-q.left)/q.width*EST.img.w)));
+    pt.y=Math.max(0,Math.min(EST.img.h-1,Math.round((e.clientY-q.top)/q.height*EST.img.h)));r();};
+  sb.oninput=r;sc.oninput=r;
+  pill.onclick=e=>{const b=e.target.closest('button');if(!b||b.classList.contains('on'))return;
+    pill.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+    EST.metodo=b.dataset.m;pos();r();};
+  sb.value=EST.bloco;sc.value=EST.C;
+  pill.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.m===EST.metodo));
+  setTimeout(pos,0);r();}},
+
+{id:'lado',html:`
+<h2>Os três métodos na mesma imagem</h2>
+<div class="row g24 mt24">
+  <div class="card col g12" style="width:441px;padding:20px 22px">
+    <span class="rotulo">Original</span>
+    <canvas id="l0" class="quadro" style="width:397px;height:182px"></canvas>
+  </div>
+  <div class="card col g12" style="width:441px;padding:20px 22px">
+    <span class="rotulo"><span class="acc">1</span> &nbsp;Global <span id="l1r" style="font-weight:400"></span></span>
+    <canvas id="l1" class="quadro" style="width:397px;height:182px"></canvas>
+  </div>
+  <div class="card col g12" style="width:441px;padding:20px 22px">
+    <span class="rotulo"><span class="acc">2</span> &nbsp;Otsu <span id="l2r" style="font-weight:400"></span></span>
+    <canvas id="l2" class="quadro" style="width:397px;height:182px"></canvas>
+  </div>
+</div>
+<div class="card col g16 mt24" style="padding:20px 22px">
+  <div class="row jb ae">
+    <span class="rotulo on"><span class="acc">3</span> &nbsp;Adaptativo</span>
+    <span class="sm">valores escolhidos por nós, por terem dado o melhor resultado geral: <b>bloco = 25</b> e <b>folga C = 10</b></span>
+  </div>
+  <div class="row g24 jc">
+    <div class="col g8"><span class="sm">média simples</span><canvas id="l3" class="quadro" style="width:600px;height:275px"></canvas></div>
+    <div class="col g8"><span class="sm">média ponderada</span><canvas id="l4" class="quadro" style="width:600px;height:275px"></canvas></div>
+  </div>
+</div>`,
+init(){
+  pinta(document.getElementById('l0'),EST.img);
+  pinta(document.getElementById('l1'),aplicaGlobal(EST.img,EST.T,FN.global));
+  const o=curvaOtsu(EST.hist,FN.otsu);
+  pinta(document.getElementById('l2'),aplicaGlobal(EST.img,o.T,FN.global));
+  pinta(document.getElementById('l3'),aplicaAdapt(EST.img,25,10,'media',FN.adapt));
+  pinta(document.getElementById('l4'),aplicaAdapt(EST.img,25,10,'gauss',FN.adapt));
+  document.getElementById('l1r').textContent='· T = '+EST.T+' (escolhido por nós)';
+  document.getElementById('l2r').textContent='· T = '+o.T+' (calculado)';}},
+
+{id:'quando',html:`
+<h2>Quando usar cada um</h2>
+<table class="mt24" style="font-size:19px">
+  <tr><th style="width:150px"></th><th style="width:168px">Método</th><th style="width:272px">O que você define</th>
+    <th style="width:330px">O que o computador calcula</th><th>Quando usar</th></tr>
+  <tr><td><canvas id="q1" class="quadro" style="width:132px;height:60px"></canvas></td><td><b>Global</b></td>
+    <td>O corte <span class="tt">T</span>, um número só</td><td>Nada. Ele só aplica a comparação</td>
+    <td>Luz uniforme e controlada, como uma esteira industrial</td></tr>
+  <tr><td><canvas id="q2" class="quadro" style="width:132px;height:60px"></canvas></td><td><b>Otsu</b></td>
+    <td>Nada</td><td>O corte <span class="tt">T</span>, a partir do histograma da imagem</td>
+    <td>Luz uniforme e histograma com dois morros, sem chutar o valor</td></tr>
+  <tr class="on"><td><canvas id="q3" class="quadro" style="width:132px;height:60px"></canvas></td><td><b>Adaptativo</b></td>
+    <td>O <span class="tt">bloco</span> e a folga <span class="tt">C</span></td>
+    <td>Um corte para cada pixel: <span class="tt">média dos vizinhos − C</span></td>
+    <td>Sombra, luz desigual, documento fotografado com celular</td></tr>
+</table>
+<div class="row g24 mt32">
+  <div class="card grow"><h3>Quando o Otsu falha</h3>
+    <p class="sm mt8">Histograma sem dois morros, objeto muito pequeno, ruído alto e, principalmente, iluminação desigual: ele resolve o chute, não a sombra.</p></div>
+  <div class="card grow"><h3>Quando o adaptativo falha</h3>
+    <p class="sm mt8">Em áreas lisas e bem iluminadas, onde a média local fica quase igual ao próprio pixel e o ruído passa a decidir o resultado.</p></div>
+</div>`,
+init(){
+  pinta(document.getElementById('q1'),aplicaGlobal(EST.img,EST.T,FN.global));
+  pinta(document.getElementById('q2'),aplicaGlobal(EST.img,curvaOtsu(EST.hist,FN.otsu).T,FN.global));
+  pinta(document.getElementById('q3'),aplicaAdapt(EST.img,25,10,'media',FN.adapt));}},
+
+{id:'obrigado',escuro:true,html:`
+<div class="row g56 ac" style="height:100%">
+  <div class="col g24 grow">
+    <h1 style="font-size:104px">Obrigado</h1>
+    <div class="col g12 mt40">
+      <span class="lead" style="color:#EDF0F4">João Gabriel Romanin Seti</span>
+      <span class="lead" style="color:#EDF0F4">Murilo Bertalha Volante</span>
+    </div>
+  </div>
+  <div class="col g16 ac" style="width:500px">
+    <p class="lead" style="color:#CDD5DF;text-align:center;max-width:470px">Repositório com a apresentação e as explicações, para consulta e estudo.</p>
+    <div id="qrCaixa" style="width:430px;height:430px;border-radius:20px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#151B24;border:2px dashed #39434F">
+      <span class="sm" id="qrVazio">nenhuma imagem</span>
+      <img id="qrImg" style="display:none;width:100%;height:100%;object-fit:contain;background:#fff">
+    </div>
+    <input type="file" id="qrFile" accept="image/*" style="display:none">
+    <button class="botao forte" id="qrBt" style="width:430px;padding:16px">enviar imagem do QR code</button>
+    <button class="botao" id="qrLimpa" style="width:430px;display:none">remover</button>
+  </div>
+</div>`,
+init(){
+  const cx=document.getElementById('qrCaixa'),img=document.getElementById('qrImg'),vazio=document.getElementById('qrVazio');
+  const bt=document.getElementById('qrBt'),lp=document.getElementById('qrLimpa'),f=document.getElementById('qrFile');
+  const mostraQR=d=>{if(!d){img.style.display='none';vazio.style.display='';cx.style.border='2px dashed #39434F';
+      bt.textContent='enviar imagem do QR code';lp.style.display='none';return;}
+    img.src=d;img.style.display='';vazio.style.display='none';cx.style.border='0';
+    bt.textContent='trocar imagem';lp.style.display='';};
+  let salvo=null;try{salvo=localStorage.getItem('qrcode')}catch(e){salvo=window.__qr||null}
+  mostraQR(salvo);
+  bt.onclick=()=>f.click();
+  lp.onclick=()=>{try{localStorage.removeItem('qrcode')}catch(e){}window.__qr=null;mostraQR(null)};
+  f.onchange=()=>{const a=f.files&&f.files[0];if(!a)return;const rd=new FileReader();
+    rd.onload=()=>{const d=rd.result;window.__qr=d;try{localStorage.setItem('qrcode',d)}catch(e){}mostraQR(d)};
+    rd.readAsDataURL(a);f.value='';};}}
+];
+
+/* ===== realce de sintaxe ===== */
+function realca(src,lang){
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const t=esc(src);
+  const re=lang==='py'
+    ? /(#[^\n]*)|("""[\s\S]*?"""|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')|\b(def|class|return|import|from|as|if|elif|else|for|while|in|not|and|or|is|lambda|with|try|except|raise|pass)\b|\b(None|True|False|self|int|float|str)\b|\b(\d+(?:\.\d+)?)\b|\b([A-Za-z_]\w*)(?=\s*\()/g
+    : /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|(`(?:[^`\\]|\\.)*`|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')|\b(if|else|return|for|while|break|continue|switch|case|try|catch|throw)\b|\b(const|let|var|function|new|typeof)\b|\b(\d+(?:\.\d+)?)\b|\b(Math|Number|Array|String|Object)\b|\b([A-Za-z_]\w*)(?=\s*\()/g;
+  const cls=lang==='py'?['t-com','t-str','t-ctl','t-kw','t-num','t-fn']:['t-com','t-str','t-ctl','t-kw','t-num','t-typ','t-fn'];
+  return t.replace(re,function(){
+    const g=Array.prototype.slice.call(arguments,1,1+cls.length);
+    for(let i=0;i<g.length;i++) if(g[i]!==undefined) return '<span class="'+cls[i]+'">'+g[i]+'</span>';
+    return arguments[0];});
+}
+
+/* ===== motor ===== */
+const palco=document.getElementById('palco'),btcode=document.getElementById('btcode');
+const ed=document.getElementById('ed'),edabas=document.getElementById('edabas');
+const edhl=document.getElementById('edhl'),edta=document.getElementById('edta');
+const edst=document.getElementById('edst'),edwrap=document.getElementById('edwrap');
+const cont=document.getElementById('cont');
+let atual=0,abaAtiva=null,tmr=null;
+
+function ajusta(){
+  const aberto=ed.classList.contains('on');
+  const disp=window.innerWidth-(aberto?ed.offsetWidth:0);
+  const e=Math.min(disp/1600,window.innerHeight/900);
+  palco.style.transform='translate('+((disp-1600*e)/2)+'px,-50%) scale('+e+')';
+}
+window.addEventListener('resize',ajusta);
+
+function mostra(i,semAnim){
+  atual=Math.max(0,Math.min(SL.length-1,i));
+  const s=SL[atual];
+  document.body.classList.toggle('escuro',!!s.escuro);
+  palco.innerHTML='<div class="slide'+(s.escuro?' escuro':'')+(semAnim?'':' entra')+'">'+s.html+'</div>';
+  if(s.init) try{s.init()}catch(e){console.error(e)}
+  const tem=!!(s.codigo&&s.codigo.length);
+  btcode.style.display=tem?'flex':'none';
+  if(!tem) fecha(); else montaAbas(s.codigo);
+  cont.textContent=(atual+1)+' / '+SL.length;
+  location.hash=s.id;
+}
+function montaAbas(ch){
+  [].slice.call(edabas.querySelectorAll('.aba')).forEach(b=>b.remove());
+  if(ch.indexOf(abaAtiva)<0) abaAtiva=ch[0];
+  ch.forEach(k=>{const b=document.createElement('button');
+    b.className='aba'+(k===abaAtiva?' on':'');b.textContent=FONTES[k].nome;
+    b.onclick=()=>{abaAtiva=k;montaAbas(ch)};
+    edabas.insertBefore(b,edabas.querySelector('.fechar'));});
+  carrega();
+}
+function carrega(){
+  const f=FONTES[abaAtiva],txt=(abaAtiva in EDIT)?EDIT[abaAtiva]:f.src;
+  edta.value=txt;edhl.innerHTML=realca(txt,f.lang);
+  edwrap.classList.toggle('ro',!!f.ro);
+  edta.readOnly=!!f.ro;
+  edta.scrollTop=0;edhl.parentNode.scrollTop=0;
+  edst.className='st';
+  edst.textContent=f.ro?'script completo · role e copie · editar aqui não muda o slide'
+    :((abaAtiva in EDIT)?'editado':'edite e o slide muda na hora');
+}
+function aplica(){
+  const f=FONTES[abaAtiva];if(f.ro)return;
+  const src=edta.value;
+  if(src===f.src) delete EDIT[abaAtiva]; else EDIT[abaAtiva]=src;
+  const base=abaAtiva.replace('Py','');
+  try{
+    FN[base]=compila(base,src);
+    if(base==='otsu') EST.ot=curvaOtsu(EST.hist,FN.otsu);
+    edst.className='st ok';edst.textContent='✓ aplicado';
+    mostra(atual,true);
+  }catch(e){edst.className='st err';edst.textContent='✗ '+e.message}
+}
+edta.addEventListener('input',()=>{
+  edhl.innerHTML=realca(edta.value,FONTES[abaAtiva].lang);
+  clearTimeout(tmr);tmr=setTimeout(aplica,380);});
+edta.addEventListener('scroll',()=>{
+  edhl.parentNode.scrollTop=edta.scrollTop;edhl.parentNode.scrollLeft=edta.scrollLeft;});
+edta.addEventListener('keydown',e=>{
+  if(e.key==='Tab'){e.preventDefault();const i=edta.selectionStart;
+    edta.setRangeText('  ',i,edta.selectionEnd,'end');edta.dispatchEvent(new Event('input'));}});
+document.getElementById('edreset').onclick=()=>{
+  const base=abaAtiva.replace('Py','');
+  delete EDIT[abaAtiva];FN[base]=PADRAO[base];
+  if(base==='otsu') EST.ot=curvaOtsu(EST.hist,FN.otsu);
+  carrega();mostra(atual,true);edta.focus();};
+function abre(){ed.classList.add('on');btcode.classList.add('on');ajusta()}
+function fecha(){ed.classList.remove('on');btcode.classList.remove('on');ajusta()}
+btcode.onclick=()=>ed.classList.contains('on')?fecha():abre();
+document.getElementById('edfechar').onclick=fecha;
+
+/* unica navegacao: setas, espaco e os botoes do apresentador */
+document.addEventListener('keydown',e=>{
+  const t=e.target.tagName;
+  if(t==='TEXTAREA'||t==='INPUT') return;
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();mostra(atual+1)}
+  else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();mostra(atual-1)}
+});
+
+ajusta();
+const h=SL.findIndex(s=>s.id===location.hash.slice(1));
+mostra(h>=0?h:0,true);
+</script>
+</body>
+</html>
