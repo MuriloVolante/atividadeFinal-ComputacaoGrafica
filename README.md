@@ -45,7 +45,7 @@ python 03-limiar-adaptativo/adaptativo.py minhafoto.png
 
 Se o `python` não funcionar no Windows, tenta `py`.
 
-## O que cada um cospe
+## O que cada um devolve
 
 - `limiar_global.py`: salva `global_T60.png`, `global_T100.png`, `global_T140.png` e `global_T180.png`, e mostra no terminal quantos % de pixel ficou branco em cada T
 - `otsu.py`: salva `otsu.png` e mostra o T escolhido
